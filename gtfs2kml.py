@@ -7,8 +7,8 @@ target_srid = str(4326)
 
 # Now playing with the created table
 try:
-	# Loading the shapefile into the database
-	cmd = "kmlwriter.py "+gtfs_in+" tmp/"+filename_out+".kml"
+	# Creating a KML file from the GTFS file
+	cmd = "python gtfs/python/kmlwriter.py "+gtfs_in+" tmp/"+filename_out+".kml"
 	print "Executing command: "+cmd
 	os.system(cmd)
 
