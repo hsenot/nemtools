@@ -105,14 +105,6 @@ try:
 	cur.execute(sql)	
 	conn.commit()
 
-
-	# Determining intersection points
-	# Using an interative algorithm, considering all existing segments one after the other (loop)
-	# If it's got (point) intersections with any other segment, then it needs to be split
-	# We remove the initial segment and insert the split part(s)
-
-	# Do we need to repeat? It seems that by construction, we're going to find all intersections in one pass, TBC
-
 	# Creating an index on it
 	print "Step 10"
 	sql = "CREATE INDEX "+table_out+"_mini_geom_gist ON "+table_out+"_mini USING gist (the_geom);"
