@@ -1,7 +1,7 @@
 import os
 import psycopg2
 
-shp_in = "in/network_sample.shp"
+shp_in = "in/shp/network_sample.shp"
 table_out = "nw_sample"
 target_srid = str(4326)
 db_name = "bze"
