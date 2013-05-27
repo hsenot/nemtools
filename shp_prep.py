@@ -39,37 +39,50 @@ try:
 	conn.commit()
 
 	# Recreating minified table as a grid-snapped version
-	print "Step 2"
-	sql = "CREATE TABLE "+table_out+"_mini AS SELECT gid,geom as the_geom FROM "+table_out
+	print "Step 2a"
+	sql = "CREATE TABLE "+table_out+"_mini AS SELECT gid,name,geom as the_geom FROM "+table_out
 	print sql
 	cur.execute(sql)
 	conn.commit()
 
-	# Getting the IDs (gids) of the 
+	# Added PK
+	print "Step 2b"
+	sql = "ALTER TABLE "+table_out+"_mini ADD CONSTRAINT mini_pk PRIMARY KEY(gid);"
+	print sql
+	cur.execute(sql)
+	conn.commit()
+
+	# Recreating minified table as a grid-snapped version
+	print "Step 2c"
+	sql = "ALTER TABLE "+table_out+"_mini ADD CONSTRAINT mini_uk UNIQUE(name);"
+	print sql
+	cur.execute(sql)
+	conn.commit()
+
+	# Getting the IDs (gids) and names of the routes 
 	print "Step 3"
-	sql = "SELECT gid from "+table_out+"_mini"
+	sql = "SELECT gid,name from "+table_out+"_mini"
 	print sql
 	cur.execute(sql)
 	rows = cur.fetchall()
 
 	# Snapping every route to every other route - to avoid duplicate / slightly different routes along the same road (ex: other side of the road, ...)
-	exceptions = [['6','15']]
+	#exceptions = [['6','15']]
 	for row in rows:
 		print "Step 4x"
-		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,0.00011) from "+table_out+"_mini a where a.gid = "+str(row[0])+")"
+		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,0.00011) from "+table_out+"_mini a where a.gid = "+str(row[0])+") WHERE "+table_out+"_mini.gid <> "+ str(row[0])
 		print sql
 		cur.execute(sql)
 		conn.commit()
 
-	# Manual re-snapping
-	resnap = [['13','2','0.0005'],['2','5','0.0005'],['4','5','0.0005'],['15','4','0.0005'],['16','5','0.005'],['17','6','0.0001'],['16','15','0.0005'],['7','1','0.0005'],['7','5','0.0003'],['10','9','0.0002'],['3','9','0.0005']]
+	# Manually re-snapping elements: [route from,route to, tolerance]
+	resnap = [['EW3-R01','NS_05_01','0.0005'],['NS_05_01','NS_05_02','0.0005'],['NS_05_03','NS_05_02','0.0005'],['EW3-R03','NS_05_03','0.0005'],['EW3-R05','NS_05_02','0.005'],['EW3-R06','NS_05_06','0.0001'],['EW3-R05','EW3-R03','0.0005'],['NS-05-07LM','NS_05_04','0.0005'],['NS-05-07LM','NS_05_02','0.0003'],['EW3-R08','EW3-R04','0.0002'],['NS_05_05','EW3-R04','0.0005']]
 	for val in resnap:
 		print "Step 5x"
-		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,"+str(val[2])+") from "+table_out+"_mini a where a.gid = "+str(val[1])+") where gid="+str(val[0])
+		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,"+str(val[2])+") from "+table_out+"_mini a where a.name = '"+str(val[1])+"') where name='"+str(val[0])+"'"
 		print sql
 		cur.execute(sql)
 		conn.commit()
-
 
 	# Dropping minified table
 	print "Step 5"
@@ -78,14 +91,14 @@ try:
 	cur.execute(sql)
 	conn.commit()
 
-	# Creating a point structure based on the intersections - dimension 0 intersections
+	# Creating a point structure based on the intersections (dimension 0 intersections)
 	print "Step 6"
 	sql = "create table "+table_out+"_inter as select * from (select cast(nextval('"+table_out+"_gid_seq') as integer) AS id,(ST_Dump(ST_Intersection(a.the_geom,b.the_geom))).geom as the_geom from "+table_out+"_mini a, "+table_out+"_mini b where a.gid < b.gid and ST_Intersects(a.the_geom,b.the_geom)) t where st_dimension(the_geom)=0"
 	print sql
 	cur.execute(sql)	
 	conn.commit()
 
-	# Inserting in the point structure the intersections - dimension 1 intersections
+	# Inserting in the point structure the intersections (dimension 1 intersections)
 	print "Step 7"
 	sql = "insert into "+table_out+"_inter select id,(st_dump(ST_Collect(ST_startpoint(the_geom),st_endpoint(the_geom)))).geom as the_geom from (select cast(nextval('"+table_out+"_gid_seq') as integer) AS id,(ST_Dump(ST_LineMerge(ST_Intersection(a.the_geom,b.the_geom)))).geom as the_geom from "+table_out+"_mini a, "+table_out+"_mini b where a.gid < b.gid and ST_Intersects(a.the_geom,b.the_geom)) t where st_dimension(the_geom)=1"
 	print sql
