@@ -130,13 +130,31 @@ Language;English
 
 	for row in rows:
 		print "Step 3a"
-		print "Point ID: "+str(row[0])
+		print "Line: "+str(row[0])
 		fo.write("Linie;"+str(row[0])+";A;1;rot;0;;;\n")
 		fo.write("Verlauf;"+str(row[0])+";"+str(row[1])+";\n")
 		fo.write("Halte;"+str(row[0])+";"+str(row[1]))
 		fo.write("\n\n")
 
+
+	# Kanzeit section - time travel = length by average speed
+	print "Step 4"
+	sql = """
+		select all pairs of consecutive stops, and the associated physical length, to be multiplied by an average speed
+	"""
+	print sql
+	cur.execute(sql)
+	rows = cur.fetchall()
+
+	for row in rows:
+		print "Step 4a"
+		print "Edge: "+str(row[0])
+		fo.write("Kanzeit;"+str(row[0])+";"+str(row[1])+";A;"+str(row[2])+"\n")
+
 	fo.close()
+
+	# Laegen section: physical length of each edge
+	# Very close to previous query
 
 	# Exporting the line table as a shapefile
 	print "Step 6a"	
