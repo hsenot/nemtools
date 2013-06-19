@@ -2,6 +2,7 @@ import os
 import psycopg2
 
 shp_in = "in/shp/network-saved.shp"
+shp_out = "out/network-self-snapped.shp"
 table_out = "nw"
 target_srid = str(4326)
 db_name = "bze"
@@ -32,11 +33,12 @@ except:
 cur = conn.cursor()
 try:
 	# for the snapping to work best, especially at visual intersections, we need to add the intersecting points in the original geometries
+	# This query is unfortunately not doing a great job ...
 	print "Step 0"
 	sql = "update "+table_out+" set geom=ST_Union("+table_out+".geom,ST_Intersection("+table_out+".geom,b.geom)) from "+table_out+" b where b.gid <> "+table_out+".gid and ST_GeometryType(ST_Union("+table_out+".geom,ST_Intersection("+table_out+".geom,b.geom)))='ST_LineString';"
 	print sql
-	cur.execute(sql)
-	conn.commit()
+	#cur.execute(sql)
+	#conn.commit()
 
 	# Dropping minified table
 	print "Step 1"
@@ -85,7 +87,7 @@ try:
 	#exceptions = [['6','15']]
 	for row in rows:
 		print "Step 4x"
-		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,0.0001) from "+table_out+"_mini a where a.gid = "+str(row[0])+") WHERE "+table_out+"_mini.gid <> "+ str(row[0])
+		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,0.00015) from "+table_out+"_mini a where a.gid = "+str(row[0])+") WHERE "+table_out+"_mini.gid <> "+ str(row[0])
 		print sql
 		cur.execute(sql)
 		conn.commit()
@@ -99,33 +101,18 @@ try:
 	#	cur.execute(sql)
 	#	conn.commit()
 
-	# Dropping minified table
-	print "Step 5"
-	sql = "DROP TABLE IF EXISTS "+table_out+"_inter CASCADE;"
-	print sql
-	cur.execute(sql)
-	conn.commit()
-
-	# Creating a point structure based on the intersections (dimension 0 intersections)
-	print "Step 6"
-	sql = "create table "+table_out+"_inter as select * from (select cast(nextval('"+table_out+"_gid_seq') as integer) AS id,(ST_Dump(ST_Intersection(a.the_geom,b.the_geom))).geom as the_geom from "+table_out+"_mini a, "+table_out+"_mini b where a.gid < b.gid and ST_Intersects(a.the_geom,b.the_geom)) t where st_dimension(the_geom)=0"
-	print sql
-	cur.execute(sql)	
-	conn.commit()
-
-	# Inserting in the point structure the intersections (dimension 1 intersections)
-	print "Step 7"
-	sql = "insert into "+table_out+"_inter select id,(st_dump(ST_Collect(ST_startpoint(the_geom),st_endpoint(the_geom)))).geom as the_geom from (select cast(nextval('"+table_out+"_gid_seq') as integer) AS id,(ST_Dump(ST_LineMerge(ST_Intersection(a.the_geom,b.the_geom)))).geom as the_geom from "+table_out+"_mini a, "+table_out+"_mini b where a.gid < b.gid and ST_Intersects(a.the_geom,b.the_geom)) t where st_dimension(the_geom)=1"
-	print sql
-	cur.execute(sql)	
-	conn.commit()
-
 	# Creating an index on it
-	print "Step 10"
+	print "Step 5"
 	sql = "CREATE INDEX "+table_out+"_mini_geom_gist ON "+table_out+"_mini USING gist (the_geom);"
 	print sql
 	cur.execute(sql)
 	conn.commit()
+
+	# Exporting the network as a shapefile
+	print "Step 6"	
+	cmd = "pgsql2shp -f "+shp_out+" -p "+db_port+" "+db_name+" "+table_out+"_mini"
+	print "Executing command: "+cmd
+	os.system(cmd)	
 
 except Exception,e: 
     print "I can't do that"
