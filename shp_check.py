@@ -1,21 +1,42 @@
 import os
 import psycopg2
 
+# Configuring the transport mode to consider
+#current_mode = "Train"
+#current_mode = "Tram"
+current_mode = "Bus"
 
-shp_line_in  = "out/network-self-snapped-reworked.shp"
-shp_point_in = "out/interchange.shp"
-shp_stop_in = "out/stop.shp"
+# Configuration for each mode
+train_dict = {"shp_line_in":"out/train_line.shp","shp_stop_in":"out/train_stop.shp","nem_filename_out":"out/train_network.nem"}
+train_dict.update({"table_line_out":"nw_train_line","table_point_out":"nw_train_stop"})
+train_dict.update({"perform_id_update":False,"mode_abbrev":"T","avg_speed_km_per_hour":40})
+tram_dict = {"shp_line_in":"out/tram_line.shp","shp_stop_in":"out/tram_stop.shp","nem_filename_out":"out/tram_network.nem"}
+tram_dict.update({"table_line_out":"nw_tram_line","table_point_out":"nw_tram_stop"})
+tram_dict.update({"perform_id_update":False,"mode_abbrev":"M","avg_speed_km_per_hour":20})
+newnw_dict = {"shp_line_in":"out/network-self-snapped-reworked.shp","shp_stop_in":"out/interchange.shp","nem_filename_out":"out/new_network.nem"}
+newnw_dict.update({"table_line_out":"nw_line","table_point_out":"nw_point"})
+newnw_dict.update({"perform_id_update":True,"mode_abbrev":"B","avg_speed_km_per_hour":30})
+road_dict = {"mode_abbrev":"A"}
+mode_dict = {"Train":train_dict,"Tram":tram_dict,"Bus":newnw_dict,"Road":road_dict}
 
-nem_filename_out = "out/new_network.nem"
+# Assigning variables from the current mode configuration to working variables
+nem_filename_out = mode_dict[current_mode]["nem_filename_out"]
+shp_line_in  = mode_dict[current_mode]["shp_line_in"]
+shp_stop_in = mode_dict[current_mode]["shp_stop_in"]
+table_line_out = mode_dict[current_mode]["table_line_out"]
+table_point_out = mode_dict[current_mode]["table_point_out"]
+perform_id_update = mode_dict[current_mode]["perform_id_update"]
+mode_abbrev = mode_dict[current_mode]["mode_abbrev"]
+point_prefix = mode_abbrev
+avg_speed_km_per_hour = mode_dict[current_mode]["avg_speed_km_per_hour"]
 
-table_line_out = "nw_line"
-table_point_out = "nw_point"
-table_stop_out = "nw_stop"
-
+# Other variables
 target_srid = str(4326)
 db_name = "bze"
 db_port = str(54321)
 
+
+# Processing start - loading the shapefiles into the local database
 print "Preparing the shapefile "+shp_line_in+" ..."
 
 # Loading the line shapefile into the database
@@ -28,27 +49,15 @@ cmd = "psql -p "+db_port+" -d "+db_name+" -f "+table_line_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
-print "Preparing the shapefile "+shp_point_in+" ..."
+print "Preparing the shapefile "+shp_stop_in+" ..."
 
 # Loading the line shapefile into the database
-cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_point_in+" "+table_point_out+" > "+table_point_out+".sql"
+cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_stop_in+" "+table_point_out+" > "+table_point_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
 # Loading the result using psql
 cmd = "psql -p "+db_port+" -d "+db_name+" -f "+table_point_out+".sql"
-print "Executing command: "+cmd
-os.system(cmd)
-
-print "Preparing the shapefile "+shp_stop_in+" ..."
-
-# Loading the line shapefile into the database
-cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_stop_in+" "+table_stop_out+" > "+table_stop_out+".sql"
-print "Executing command: "+cmd
-os.system(cmd)
-
-# Loading the result using psql
-cmd = "psql -p "+db_port+" -d "+db_name+" -f "+table_stop_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
@@ -68,35 +77,22 @@ try:
 	# The game here is to detect if all lines can be decomposed as successions of nodes
 	# And to help perform visual checks to make sure all stops are well and trully connected to the lines
 
-	# Merging points from the stop dataset into the nw_point
-	print "Step 1a"
-	sql = "update nw_point set typ='INTERSECT';"
-	print sql
-	cur.execute(sql)
-	conn.commit()
-
-	# Merging points from the stop dataset into the nw_point
-	print "Step 1b"
-	sql = "insert into nw_point (typ,geom) select 'LINEEND',geom from nw_stop"
-	print sql
-	cur.execute(sql)
-	conn.commit()
-
 	# Setting the IDs of points right, so that we are sure they have unique IDs
-	print "Step 1c"
-	sql = "update nw_point set id=gid;"
-	print sql
-	cur.execute(sql)
-	conn.commit()
+	# This is for visual purposes on the stop layer, because we label the stops with ID
+	if perform_id_update:
+		print "Step 1"
+		sql = "update "+table_point_out+" set id=gid;"
+		print sql
+		cur.execute(sql)
+		conn.commit()
 
 	# Exporting a NEM file based on the lines and points identified
 	fo = open(nem_filename_out, "w+")
 
 	# Writing the header
+	fo.write("Titel;"+nem_filename_out)
 	fo.write(
-"""
-Titel;Test
-Wertbedeutung;Nachfrage
+"""Wertbedeutung;Nachfrage
 Linienmodus;0
 Verkehrsmittelsumme;1
 Meterpropixel;111
@@ -124,7 +120,7 @@ Language;English
 
 	# Getting all the points to write in the file
 	print "Step 2"
-	sql = "select id,st_x(geom) as x,st_y(geom) as y from nw_point"
+	sql = "select gid,st_x(geom) as x,st_y(geom) as y from "+table_point_out
 	print sql
 	cur.execute(sql)
 	rows = cur.fetchall()
@@ -132,22 +128,25 @@ Language;English
 	print "Step 2a"
 	for row in rows:
 		print "Point ID: "+str(row[0])
-		fo.write("Punkt;X"+str(row[0])+";"+str(row[1])+";"+str(row[2])+";Intersection "+str(row[0])+";K;0;0;300;300")
+		fo.write("Punkt;"+point_prefix+str(row[0])+";"+str(row[1])+";"+str(row[2])+";Stop "+point_prefix+str(row[0])+";K;0;0;300;300")
 		fo.write("\n")
 
 	# Transport modes
 	fo.write("\n")
-	fo.write("Vmittel;Road;A;1;;;;\n")
+
+	for m in mode_dict.keys():
+		fo.write("Vmittel;"+str(m)+";"+str(mode_dict[m]["mode_abbrev"])+";1;;;;\n")
+
 	fo.write("\n")
 
 	# Line descriptions
 	# Getting all the lines to write in the file
 	print "Step 3"
 	sql = """
-		select l_name,array_to_string(array_agg('X'||p_id),';') as pt_list
+		select l_name,array_to_string(array_agg('"""+point_prefix+"""'||p_id),';') as pt_list
 		from
-		(select l.name as l_name,p.id as p_id from
-		nw_line l, nw_point p
+		(select l.name as l_name,p.gid as p_id from
+		"""+table_line_out+""" l, """+table_point_out+""" p
 		where ST_Distance(p.geom,l.geom)<0.000001
 		order by l.name,ST_Line_Locate_point(l.geom,ST_ClosestPoint(l.geom,p.geom))
 		) t
@@ -161,7 +160,7 @@ Language;English
 	print "Step 3a"
 	for row in rows:
 		print "Line: "+str(row[0])
-		fo.write("Linie;"+str(row[0])+";A;1;rot;0;;;\n")
+		fo.write("Linie;"+str(row[0])+";"+mode_abbrev+";1;rot;0;;;\n")
 		fo.write("Verlauf;"+str(row[0])+";"+str(row[1])+";\n")
 		fo.write("Halte;"+str(row[0])+";"+str(row[1]))
 		fo.write("\n\n")
@@ -169,7 +168,7 @@ Language;English
 	# Kanzeit section - time travel = length by average speed
 	print "Step 4"
 	sql = """
-select l_name,'X'||pt_a as pt_a,'X'||pt_b as pt_b,
+select l_name,'"""+point_prefix+"""'||pt_a as pt_a,'"""+point_prefix+"""'||pt_b as pt_b,
 round(st_length(
   st_transform(
     st_line_substring(
@@ -190,16 +189,16 @@ from
       select l_name,array_agg(p_id) as pt_arr
       from
         (
-          select l.name as l_name,p.id as p_id 
-          from nw_line l, nw_point p
+          select l.name as l_name,p.gid as p_id 
+          from """+table_line_out+""" l, """+table_point_out+""" p
           where ST_Distance(p.geom,l.geom)<0.000001
           order by l.name,ST_Line_Locate_point(l.geom,ST_ClosestPoint(l.geom,p.geom))
         ) t
       group by l_name order by l_name
     ) t
   ) s
-) u, nw_point pa, nw_point pb, nw_line nl
-where pa.id=u.pt_a and pb.id=u.pt_b
+) u, """+table_point_out+""" pa, """+table_point_out+""" pb, """+table_line_out+""" nl
+where pa.gid=u.pt_a and pb.gid=u.pt_b
 and ST_Distance(pa.geom,nl.geom)<0.000001
 and ST_Distance(pb.geom,nl.geom)<0.000001
 and nl.name=u.l_name order by l_name
@@ -214,7 +213,6 @@ and nl.name=u.l_name order by l_name
 
 		# Applying an average speed to the segment length
 		# 
-		avg_speed_km_per_hour = 20
 		duration_in_sec = int(round(int(row[3])/(avg_speed_km_per_hour*1000.0/3600),0))
 		fo.write("Kanzeit;"+str(row[1])+";"+str(row[2])+";A;"+str(duration_in_sec)+"\n")
 
@@ -241,15 +239,9 @@ and nl.name=u.l_name order by l_name
 	
 	# Exporting the point table as a shapefile
 	print "Step 6b"	
-	cmd = "pgsql2shp -f "+shp_point_in2+" -p "+db_port+" "+db_name+" \"SELECT id,geom FROM nw_point WHERE typ='INTERSECT'\""
+	cmd = "pgsql2shp -f "+shp_point_in2+" -p "+db_port+" "+db_name+" "+table_point_out
 	print "Executing command: "+cmd
-	#os.system(cmd)	
-
-	# Exporting the stop table as a shapefile
-	print "Step 6b"	
-	cmd = "pgsql2shp -f "+shp_stop_in2+" -p "+db_port+" "+db_name+" \"SELECT id,geom FROM nw_point WHERE typ='LINEEND'\""
-	print "Executing command: "+cmd
-	#os.system(cmd)	
+	#os.system(cmd)
 	"""
 
 except Exception,e: 
