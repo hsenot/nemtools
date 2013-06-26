@@ -1,0 +1,75 @@
+Yikes, the program threw an unexpected exception!
+
+Hopefully a complete report has been saved to transitfeedcrash.txt,
+though if you are seeing this message we've already disappointed you once
+today. Please include the report in a new issue at
+http://code.google.com/p/googletransitdatafeed/issues/entry
+or an email to the public group googletransitdatafeed@googlegroups.com. Sorry!
+
+------------------------------------------------------------
+transitfeed version 1.2.11
+
+File "gtfs/python/kmlwriter.py", line 800, in main
+       writer.show_stop_hierarchy = options.show_stop_hierarchy
+ -->   writer.Write(feed, output_path)
+     
+    feed = <transitfeed.schedule.Schedule object at 0x00000000028E7A58>
+    args = ['in/gtfs/train-20120802.zip', 'tmp/from_gtfs-train.kml']
+    input_path = in/gtfs/train-20120802.zip
+    writer = <__main__.KMLWriter object at 0x00000000028E7AC8>
+    parser = <transitfeed.util.OptionParserLongError instance at 0x000000000259F348>
+    loader = <transitfeed.loader.Loader instance at 0x00000000028E3F08>
+    output_path = tmp/from_gtfs-train.kml
+    usage = %prog [options] <input GTFS.zip> [<output.kml>]
+
+Reads GTFS file or directory <input GTFS.zip> and creates a KML file
+<output.kml> that contains the geographical features of the input. If
+<output.kml> is omitted a default filename is picked based on
+<input GTFS.zip>. By default the KML contains all stops and shapes.
+
+For more information see
+http://code.google.com/p/googletransitdatafeed/wiki/KMLWriter
+
+    options = {'show_trips': None, 'split_routes': None, 'date_filter': None, 'shape_points': None, 'altitude_per_sec': 1.0, 'show_stop_hierarchy': None}
+
+File "gtfs/python/kmlwriter.py", line 719, in Write
+         else:
+ -->       self._CreateRoutesFolder(schedule, doc)
+         self._CreateShapesFolder(schedule, doc)
+    schedule = <transitfeed.schedule.Schedule object at 0x00000000028E7A58>
+    doc = <Element 'Document' at 0x3ec6a58>
+    self = <__main__.KMLWriter object at 0x00000000028E7AC8>
+    output_file = tmp/from_gtfs-train.kml
+    open_tag = <Element 'open' at 0x3ec6ac8>
+    root = <Element 'kml' at 0x28e7d30>
+
+File "gtfs/python/kmlwriter.py", line 644, in _CreateRoutesFolder
+                                         style_id, False)
+ -->       self._CreateRoutePatternsFolder(route_folder, route, style_id, False)
+           if self.show_trips:
+    GetRouteName = <function GetRouteName at 0x00000000028F4898>
+    GetRouteDescription = <function GetRouteDescription at 0x0000000002CF8208>
+    schedule = <transitfeed.schedule.Schedule object at 0x00000000028E7A58>
+    route_type = None
+    style_id = route_3000001
+    route = <Route [('route_id', u'3000001'), ('route_long_name', u'Alamein'), ('route_type', 1)]>
+    routes_folder = <Element 'Folder' at 0x3ec6b70>
+    folder_name = Routes
+    doc = <Element 'Document' at 0x3ec6a58>
+    routes = [<Route [('route_id', u'3000001'), ('route_long_name', u'Alamein'), ('route_type', 1)]>, <Route [('route_id', u'3000002'), ('route_long_name', u'Belgrave'), ('route_type', 1)]>, <Route [('route_id', u'3000003'), ('route_long_name', u'Craigieburn'), ('route_type', 1)]>, <Route [('route_id', u'3000004'), ('route_long_name', u'Cranbourne'), ('route_type', 1)]>, <Route [('route_id', u'3000006'), ('route_long_name', u'Frankston'), ('route_type', 1)]>, <Route [('route_id', u'3000007'), ('route_long_n...
+    self = <__main__.KMLWriter object at 0x00000000028E7AC8>
+    route_folder = <Element 'Folder' at 0x3f74908>
+
+File "gtfs/python/kmlwriter.py", line 463, in _CreateRoutePatternsFolder
+     
+ -->     folder = self._CreateFolder(parent, 'Patterns-'+route.route_short_name, visible)
+         for n, trips in enumerate(pattern_trips):
+    parent = <Element 'Folder' at 0x3f74908>
+    pattern_id_to_trips = {-933047933: [<Trip [('route_id', u'3000001'), ('service_id', u'monfri'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000451')]>, <Trip [('route_id', u'3000001'), ('service_id', u'monfri'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000456')]>, <Trip [('route_id', u'3000001'), ('service_id', u'monfri'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000469')]>, <Trip [('route_id', u'3000001'), ('service_id', u'monfri'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000472')]>, <Trip [('rout...
+    style_id = route_3000001
+    route = <Route [('route_id', u'3000001'), ('route_long_name', u'Alamein'), ('route_type', 1)]>
+    visible = False
+    self = <__main__.KMLWriter object at 0x00000000028E7AC8>
+    pattern_trips = [[<Trip [('route_id', u'3000001'), ('service_id', u'sat'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000644')]>, <Trip [('route_id', u'3000001'), ('service_id', u'sat'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000646')]>, <Trip [('route_id', u'3000001'), ('service_id', u'sat'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000648')]>, <Trip [('route_id', u'3000001'), ('service_id', u'sat'), ('trip_headsign', u'Alamein'), ('trip_id', u'3000650')]>, <Trip [('route_id', u'3000001'), ('se...
+
+TypeError: cannot concatenate 'str' and 'NoneType' objects
