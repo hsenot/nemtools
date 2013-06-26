@@ -2,9 +2,9 @@ import os
 import psycopg2
 
 # Configuring the transport mode to consider
-#current_mode = "Train"
+current_mode = "Train"
 #current_mode = "Tram"
-current_mode = "Bus"
+#current_mode = "Bus"
 
 # Configuration for each mode
 train_dict = {"shp_line_in":"in/shp/train_line.shp","shp_stop_in":"in/shp/train_stop.shp","nem_filename_out":"out/train_network.nem"}
