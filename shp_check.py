@@ -40,24 +40,24 @@ db_port = str(54321)
 print "Preparing the shapefile "+shp_line_in+" ..."
 
 # Loading the line shapefile into the database
-cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_line_in+" "+table_line_out+" > "+table_line_out+".sql"
+cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_line_in+" "+table_line_out+" > tmp/"+table_line_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
 # Loading the result using psql
-cmd = "psql -p "+db_port+" -d "+db_name+" -f "+table_line_out+".sql"
+cmd = "psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_line_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
 print "Preparing the shapefile "+shp_stop_in+" ..."
 
 # Loading the line shapefile into the database
-cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_stop_in+" "+table_point_out+" > "+table_point_out+".sql"
+cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_stop_in+" "+table_point_out+" > tmp/"+table_point_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
 # Loading the result using psql
-cmd = "psql -p "+db_port+" -d "+db_name+" -f "+table_point_out+".sql"
+cmd = "psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_point_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
