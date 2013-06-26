@@ -7,13 +7,13 @@ import psycopg2
 current_mode = "Bus"
 
 # Configuration for each mode
-train_dict = {"shp_line_in":"out/train_line.shp","shp_stop_in":"out/train_stop.shp","nem_filename_out":"out/train_network.nem"}
+train_dict = {"shp_line_in":"in/shp/train_line.shp","shp_stop_in":"in/shp/train_stop.shp","nem_filename_out":"out/train_network.nem"}
 train_dict.update({"table_line_out":"nw_train_line","table_point_out":"nw_train_stop"})
 train_dict.update({"perform_id_update":False,"mode_abbrev":"T","avg_speed_km_per_hour":40})
-tram_dict = {"shp_line_in":"out/tram_line.shp","shp_stop_in":"out/tram_stop.shp","nem_filename_out":"out/tram_network.nem"}
+tram_dict = {"shp_line_in":"in/shp/tram_line.shp","shp_stop_in":"in/shp/tram_stop.shp","nem_filename_out":"out/tram_network.nem"}
 tram_dict.update({"table_line_out":"nw_tram_line","table_point_out":"nw_tram_stop"})
 tram_dict.update({"perform_id_update":False,"mode_abbrev":"M","avg_speed_km_per_hour":20})
-newnw_dict = {"shp_line_in":"out/network-self-snapped-reworked.shp","shp_stop_in":"out/interchange.shp","nem_filename_out":"out/new_network.nem"}
+newnw_dict = {"shp_line_in":"in/shp/network-self-snapped-reworked.shp","shp_stop_in":"in/shp/interchange.shp","nem_filename_out":"out/new_network.nem"}
 newnw_dict.update({"table_line_out":"nw_line","table_point_out":"nw_point"})
 newnw_dict.update({"perform_id_update":True,"mode_abbrev":"B","avg_speed_km_per_hour":30})
 road_dict = {"mode_abbrev":"A"}
