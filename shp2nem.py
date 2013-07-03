@@ -5,7 +5,8 @@ import psycopg2
 #current_mode = "Train"
 #current_mode = "Tram"
 #current_mode = "Bus"
-current_mode = "Walk"
+#current_mode = "Walk"
+current_mode = "OD"
 
 # Configuration for each mode
 train_dict = {"shp_line_in":"in/shp/train_line.shp","shp_stop_in":"in/shp/train_stop.shp","nem_filename_out":"out/train_network.nem"}
@@ -24,9 +25,13 @@ road_dict = {"mode_abbrev":"A"}
 
 walk_dict = {"shp_line_in":"","shp_stop_in":"","nem_filename_out":"out/walk_network.nem"}
 walk_dict.update({"table_line_out":"nw_walk_line","table_point_out":""})
-walk_dict.update({"perform_id_update":False,"mode_abbrev":"W","avg_speed_km_per_hour":4,"line_color":"rosa"})
+walk_dict.update({"perform_id_update":False,"mode_abbrev":"W","avg_speed_km_per_hour":5,"line_color":"rosa"})
 
-mode_dict = {"Train":train_dict,"Tram":tram_dict,"Bus":newnw_dict,"Road":road_dict,"Walk":walk_dict}
+od_dict = {"shp_line_in":"","shp_stop_in":"in/shp/zone_node.shp","nem_filename_out":"out/od_network.nem"}
+od_dict.update({"table_line_out":"nw_od_line","table_point_out":"nw_od_point"})
+od_dict.update({"perform_id_update":False,"mode_abbrev":"E","avg_speed_km_per_hour":5,"line_color":"orange"})
+
+mode_dict = {"Train":train_dict,"Tram":tram_dict,"Bus":newnw_dict,"Road":road_dict,"Walk":walk_dict,"OD":od_dict}
 
 # Assigning variables from the current mode configuration to working variables
 nem_filename_out = mode_dict[current_mode]["nem_filename_out"]
@@ -90,7 +95,7 @@ try:
 
 	if current_mode == "Walk":
 		print "Step 1a"
-		sql = "drop table "+table_line_out+";"
+		sql = "drop table if exists "+table_line_out+";"
 		print sql
 		cur.execute(sql)
 		conn.commit()
@@ -125,6 +130,43 @@ where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
 		conn.commit()
 
 
+	if current_mode == "OD":
+		print "Step 1a"
+		sql = "drop table if exists "+table_line_out+";"
+		print sql
+		cur.execute(sql)
+		conn.commit()
+
+		print "Step 1b"
+		sql = """
+create table """+table_line_out+""" as
+select name,pt_a,pt_b,geom
+from
+(
+select 
+cast('OD-T'||a.gid||'-E'||b.gid as character varying) as name,'T'||a.gid as pt_a,'E'||b.gid as pt_b,
+st_makeline(a.geom,b.geom) as geom 
+from nw_train_stop a,nw_od_point b
+where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
+union
+select 
+cast('OD-M'||a.gid||'-E'||b.gid as character varying) as name,'M'||a.gid as pt_a,'E'||b.gid as pt_b,
+st_makeline(a.geom,b.geom) as geom 
+from nw_tram_stop a, nw_od_point b
+where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
+union 
+select
+cast('OD-B'||a.gid||'-E'||b.gid as character varying) as name,'B'||a.gid as pt_a,'E'||b.gid as pt_b,
+st_makeline(a.geom,b.geom) as geom 
+from nw_point a,nw_od_point b
+where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
+) t;
+		"""
+		print sql
+		cur.execute(sql)
+		conn.commit()
+
+
 	# Setting the IDs of points right, so that we are sure they have unique IDs
 	# This is for visual purposes on the stop layer, because we label the stops with ID
 	if perform_id_update:
@@ -137,7 +179,7 @@ where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
 	# Exporting a NEM file based on the lines and points identified
 	fo = open(nem_filename_out, "w+")
 
-	if current_mode != "Walk":
+	if current_mode != "Walk" and current_mode != "OD":
 		# Writing the header
 		fo.write("Titel;"+nem_filename_out)
 		fo.write("""
@@ -178,6 +220,8 @@ Language;English
 
 		fo.write("\n")
 
+
+	if current_mode != "Walk":
 		# Getting all the points to write in the file
 		print "Step 2"
 		sql = "select gid,st_x(geom) as x,st_y(geom) as y from "+table_point_out
@@ -188,7 +232,7 @@ Language;English
 		print "Step 2a"
 		for row in rows:
 			print "Point ID: "+str(row[0])
-			fo.write("Punkt;"+point_prefix+str(row[0])+";"+str(row[1])+";"+str(row[2])+";Stop "+point_prefix+str(row[0])+";H;0;0;300;300")
+			fo.write("Punkt;"+point_prefix+str(row[0])+";"+str(row[1])+";"+str(row[2])+";Stop "+point_prefix+str(row[0])+";H;1000;0;300;300")
 			fo.write("\n")
 
 		fo.write("\n")
@@ -196,7 +240,7 @@ Language;English
 	# Line descriptions
 	# Getting all the lines to write in the file
 	print "Step 3"
-	if current_mode != "Walk":
+	if current_mode != "Walk" and current_mode != "OD":
 		sql = """
 		select l_name,array_to_string(array_agg('"""+point_prefix+"""'||p_id),';') as pt_list
 		from
@@ -227,7 +271,7 @@ Language;English
 
 	# Kanzeit section - time travel = length by average speed
 	print "Step 4"
-	if current_mode != "Walk":
+	if current_mode != "Walk" and current_mode != "OD":
 		sql = """
 		select l_name,'"""+point_prefix+"""'||pt_a as pt_a,'"""+point_prefix+"""'||pt_b as pt_b,
 		round(st_length(
@@ -279,7 +323,12 @@ Language;English
 
 		# Applying an average speed to the segment length
 		# 
-		duration_in_sec = int(round(int(row[3])/(avg_speed_km_per_hour*1000.0/3600),0))
+		if current_mode != "OD":
+			duration_in_sec = int(round(int(row[3])/(avg_speed_km_per_hour*1000.0/3600),0))
+		else:
+			# Fixed time for network access
+			duration_in_sec = 300
+
 		fo.write("Kanzeit;"+str(row[1])+";"+str(row[2])+";"+mode_abbrev+";"+str(duration_in_sec)+"\n")
 
 
