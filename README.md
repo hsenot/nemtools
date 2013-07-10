@@ -7,16 +7,22 @@ Pre-requisites:
 
 - a local installation of the OpenGeo Suite (tested on Community Edition 3.02)
 
+A database named 'bze', created empty on a PostGIS UTF8 template is assumed in the script.
+
+
 - Python interpreter (tested on 2.7.5 for Windows 64-bit)
 
 Note: in Windows, access to the Python executable relies on PYTHONPATH referencing the Python library folder and the PATH variable referencing PYTHONPATH
 
+
 - GDAL libray binaries (tested with release-1600-x64-gdal-1-10-mapserver-6-2 downloaded from http://www.gisinternals.com/sdk/Download.aspx?file=release-1600-x64-gdal-1-10-mapserver-6-2.zip)
+
 
 - the transitfeed Python library (https://code.google.com/p/googletransitdatafeed/wiki/TransitFeedDistribution)
 
 Note: after several unsuccessful attempts at installing the library, it has been added as a submodule of this repository: 
 git submodule add git://github.com/drt24/googletransitdatafeed.git gtfs
+
 
 
 The tools in this library are:
