@@ -31,9 +31,9 @@ The overall visual aspect of the network is maintained. Unique IDs are assigned 
 This is a basic wrapper around the transitfeed kmlwriter.py and OGR2OGR commands.
 
 Note: Due to a limitation into how QGIS and the GDAL library handle nested folders having the same name, we introduce a change in kmlwriter.py so that Patterns folders have different names:
--	folder = self._CreateFolder(parent, 'Patterns', visible)
-+    # Adding an explicit route name to the Patterns folder name so that QGIS/ogr don't get confused
-+    folder = self._CreateFolder(parent, 'Patterns-'+str(route.route_long_name), visible)
+D-	folder = self._CreateFolder(parent, 'Patterns', visible)
+A+    # Adding an explicit route name to the Patterns folder name so that QGIS/ogr don't get confused
+A+    folder = self._CreateFolder(parent, 'Patterns-'+str(route.route_long_name), visible)
 
 
 - shp2nem: a tool that translate shapefiles for different networks in an aggregated, routable NEM file
