@@ -1,12 +1,10 @@
-import os
+import os,sys
 import psycopg2
 
-# Configuring the transport mode to consider
-#current_mode = "Train"
-#current_mode = "Tram"
-#current_mode = "Bus"
-#current_mode = "Walk"
-current_mode = "OD"
+# Database / global variables
+target_srid = str(4326)
+db_name = "bze"
+db_port = str(54321)
 
 # Configuration for each mode
 train_dict = {"shp_line_in":"in/shp/train_line.shp","shp_stop_in":"in/shp/train_stop.shp","nem_filename_out":"out/train_network.nem"}
@@ -25,13 +23,19 @@ road_dict = {"mode_abbrev":"A"}
 
 walk_dict = {"shp_line_in":"","shp_stop_in":"","nem_filename_out":"out/walk_network.nem"}
 walk_dict.update({"table_line_out":"nw_walk_line","table_point_out":""})
-walk_dict.update({"perform_id_update":False,"mode_abbrev":"W","avg_speed_km_per_hour":5,"line_color":"rosa"})
+walk_dict.update({"perform_id_update":False,"mode_abbrev":"W","avg_speed_km_per_hour":5,"line_color":"orange"})
 
 od_dict = {"shp_line_in":"","shp_stop_in":"in/shp/zone_node.shp","nem_filename_out":"out/od_network.nem"}
 od_dict.update({"table_line_out":"nw_od_line","table_point_out":"nw_od_point"})
-od_dict.update({"perform_id_update":False,"mode_abbrev":"E","avg_speed_km_per_hour":5,"line_color":"orange"})
+od_dict.update({"perform_id_update":False,"mode_abbrev":"E","avg_speed_km_per_hour":5,"line_color":"rosa"})
 
 mode_dict = {"Train":train_dict,"Tram":tram_dict,"Bus":newnw_dict,"Road":road_dict,"Walk":walk_dict,"OD":od_dict}
+
+if mode_dict.has_key(sys.argv[1]):
+	current_mode = sys.argv[1];
+else:
+	print "Command line argument must be in:"+str(mode_dict.keys())
+	sys.exit(0)
 
 # Assigning variables from the current mode configuration to working variables
 nem_filename_out = mode_dict[current_mode]["nem_filename_out"]
@@ -44,11 +48,6 @@ mode_abbrev = mode_dict[current_mode]["mode_abbrev"]
 line_color = mode_dict[current_mode]["line_color"]
 point_prefix = mode_abbrev
 avg_speed_km_per_hour = mode_dict[current_mode]["avg_speed_km_per_hour"]
-
-# Other variables
-target_srid = str(4326)
-db_name = "bze"
-db_port = str(54321)
 
 if shp_line_in:
 	# Processing start - loading the shapefiles into the local database
@@ -92,8 +91,37 @@ try:
 	# The game here is to detect if all lines can be decomposed as successions of nodes
 	# And to help perform visual checks to make sure all stops are well and trully connected to the lines
 
+	# Tram stop cleanup: only those stops which are on a line!
+	if current_mode == "Tram":
+		print "Step 1a"
+		sql = """
+delete from nw_tram_stop 
+where gid in
+(select s.gid from nw_tram_stop s 
+where not exists 
+(select 1 from nw_tram_line l where st_Intersects(s.geom,l.geom)));"""
+		print sql
+		cur.execute(sql)
+		conn.commit()		
 
 	if current_mode == "Walk":
+		# Loading resources for differential correspondance walking distances
+		shp_zone_in = "in/shp/zone_walk_radius.shp"
+		table_zone_out = "zone_access_radius"
+		# Processing start - loading the shapefiles into the local database
+		print "Preparing the shapefile "+shp_zone_in+" ..."
+
+		# Loading the line shapefile into the database
+		cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_zone_in+" "+table_zone_out+" > tmp/"+table_zone_out+".sql"
+		print "Executing command: "+cmd
+		os.system(cmd)
+
+		# Loading the result using psql
+		cmd = "psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_zone_out+".sql"
+		print "Executing command: "+cmd
+		os.system(cmd)		 
+
+
 		print "Step 1a"
 		sql = "drop table if exists "+table_line_out+";"
 		print sql
@@ -109,20 +137,20 @@ from
 select 
 cast('W-T'||a.gid||'-M'||b.gid as character varying) as name,'T'||a.gid as pt_a,'M'||b.gid as pt_b,
 st_makeline(a.geom,b.geom) as geom 
-from nw_train_stop a,nw_tram_stop b
-where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
+from nw_train_stop a,nw_tram_stop b, zone_access_radius z
+where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<z.radius and st_intersects(a.geom,z.geom)
 union
 select 
 cast('W-T'||a.gid||'-B'||b.gid as character varying) as name,'T'||a.gid as pt_a,'B'||b.gid as pt_b,
 st_makeline(a.geom,b.geom) as geom 
-from nw_train_stop a,nw_point b
-where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
+from nw_train_stop a,nw_point b, zone_access_radius z
+where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<z.radius and st_intersects(a.geom,z.geom)
 union 
 select
 cast('W-M'||a.gid||'-B'||b.gid as character varying) as name,'M'||a.gid as pt_a,'B'||b.gid as pt_b,
 st_makeline(a.geom,b.geom) as geom 
-from nw_tram_stop a,nw_point b
-where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
+from nw_tram_stop a,nw_point b, zone_access_radius z
+where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<z.radius and st_intersects(a.geom,z.geom)
 ) t;
 		"""
 		print sql
@@ -140,27 +168,33 @@ where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
 		print "Step 1b"
 		sql = """
 create table """+table_line_out+""" as
-select name,pt_a,pt_b,geom
-from
+select * from
 (
-select 
-cast('OD-T'||a.gid||'-E'||b.gid as character varying) as name,'T'||a.gid as pt_a,'E'||b.gid as pt_b,
-st_makeline(a.geom,b.geom) as geom 
-from nw_train_stop a,nw_od_point b
-where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
+select cast('OD-T'||a.gid||'-E'||b.gid as character varying) as name,'T'||a.gid as pt_a,'E'||b.gid as pt_b,
+st_makeline(a.geom,b.geom) as geom
+from
+(select b.gid as od_id,(select a.gid from nw_train_stop a order by st_distance(a.geom,b.geom) limit 1) as stop_id from nw_od_point b) t,
+nw_train_stop a,
+nw_od_point b
+where a.gid=t.stop_id and b.gid=t.od_id and st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))< 1000
 union
-select 
-cast('OD-M'||a.gid||'-E'||b.gid as character varying) as name,'M'||a.gid as pt_a,'E'||b.gid as pt_b,
-st_makeline(a.geom,b.geom) as geom 
-from nw_tram_stop a, nw_od_point b
-where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
-union 
+select cast('OD-M'||a.gid||'-E'||b.gid as character varying) as name,'M'||a.gid as pt_a,'E'||b.gid as pt_b,
+st_makeline(a.geom,b.geom) as geom
+from
+(select b.gid as od_id,(select a.gid from nw_tram_stop a order by st_distance(a.geom,b.geom) limit 1) as stop_id from nw_od_point b) t,
+nw_tram_stop a,
+nw_od_point b
+where a.gid=t.stop_id and b.gid=t.od_id and st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))< 1000
+union
 select
 cast('OD-B'||a.gid||'-E'||b.gid as character varying) as name,'B'||a.gid as pt_a,'E'||b.gid as pt_b,
 st_makeline(a.geom,b.geom) as geom 
-from nw_point a,nw_od_point b
-where st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))<500
-) t;
+from
+(select b.gid as od_id,(select a.gid from nw_point a order by st_distance(a.geom,b.geom) limit 1) as stop_id from nw_od_point b) t,
+nw_point a,
+nw_od_point b
+where a.gid=t.stop_id and b.gid=t.od_id and st_distance(st_transform(a.geom,3111),st_transform(b.geom,3111))< 1000
+) u;
 		"""
 		print sql
 		cur.execute(sql)
@@ -344,20 +378,6 @@ Language;English
 
 	fo.write("\n\n")
 	fo.close()
-
-	"""
-	# Exporting the line table as a shapefile
-	print "Step 6a"	
-	cmd = "pgsql2shp -f "+shp_line_in2+" -p "+db_port+" "+db_name+" "+table_line_out
-	print "Executing command: "+cmd
-	#os.system(cmd)	
-	
-	# Exporting the point table as a shapefile
-	print "Step 6b"	
-	cmd = "pgsql2shp -f "+shp_point_in2+" -p "+db_port+" "+db_name+" "+table_point_out
-	print "Executing command: "+cmd
-	#os.system(cmd)
-	"""
 
 except Exception,e: 
     print "I can't do that"
