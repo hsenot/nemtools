@@ -7,7 +7,6 @@
 .metadata
 bin/
 tmp/
-in/
 out/
 *.tmp
 *.bak
