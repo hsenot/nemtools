@@ -9,6 +9,14 @@ Pre-requisites:
 
 A database named 'bze', created empty on a PostGIS UTF8 template is assumed in the script.
 
+Download PostGIS (PostgreSQL with GIS extensions) from http://postgis.net/install/.
+This page also includes instructions for enabling the PostGIS extensions once
+you set up your database.
+
+(A good tool for managing Postgres databases is pgAdminIII. 
+Get it from : http://www.pgadmin.org/download/index.php
+)
+
 
 - Python interpreter (tested on 2.7.5 for Windows 64-bit)
 
