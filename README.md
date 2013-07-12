@@ -23,24 +23,35 @@ Get it from : http://www.pgadmin.org/download/index.php
 Note: in Windows, access to the Python executable relies on PYTHONPATH referencing the Python library folder and the PATH variable referencing PYTHONPATH
 
 
-- GDAL libray binaries (tested with release-1600-x64-gdal-1-10-mapserver-6-2 downloaded from http://www.gisinternals.com/sdk/Download.aspx?file=release-1600-x64-gdal-1-10-mapserver-6-2.zip)
-
-
 - the transitfeed Python library (https://code.google.com/p/googletransitdatafeed/wiki/TransitFeedDistribution)
 
 Note: after several unsuccessful attempts at installing the library, it has been added as a submodule of this repository: 
 git submodule add git://github.com/drt24/googletransitdatafeed.git gtfs
 
 
+- the psycog Python library
 
-The tools in this library are:
-
-- shp_prep: cleans up an arbitrary shapefile representing a network into stop-to-stop linestrings. 
-
-The overall visual aspect of the network is maintained. Unique IDs are assigned to linestrings to maintain link throughout the subsequent conversion to NEM format.
+Note: on MacOS, it could be as easy as: easy_install psycopg2 (based on http://initd.org/psycopg/install/). You may want to use virtualenv for cleaner library management.
 
 
-- gtfs2shp: a tool to translate a GTFS file into a KML file.
+- GDAL libray binaries (tested with release-1600-x64-gdal-1-10-mapserver-6-2 downloaded from http://www.gisinternals.com/sdk/Download.aspx?file=release-1600-x64-gdal-1-10-mapserver-6-2.zip)
+
+
+
+
+The tools in this repository are:
+
+
+- shp2nem: a tool that translate shapefiles for different networks in an aggregated, routable NEM file
+
+On Windows: shp2nem.bat
+On *nix systems: shp2nem.sh
+
+This converts a geographically accurate network into a node/edges routable network and several NEM files.
+The NEM files have to be manually merged into a single NEM file for multi-modal routing.
+
+
+- gtfs2shp.py: a tool to translate a GTFS file into a KML file.
 
 This is a basic wrapper around the transitfeed kmlwriter.py and OGR2OGR commands.
 
@@ -50,9 +61,7 @@ A+    # Adding an explicit route name to the Patterns folder name so that QGIS/o
 A+    folder = self._CreateFolder(parent, 'Patterns-'+str(route.route_long_name), visible)
 
 
-- shp2nem: a tool that translate shapefiles for different networks in an aggregated, routable NEM file
+- shp_prep.py: cleans up an arbitrary shapefile representing a network into stop-to-stop linestrings. 
 
-This converts a geographically accurate network into a node/edges routable network and several NEM files.
-The NEM files have to be manually merged into a single NEM file for multi-modal routing.
-
-
+The overall visual aspect of the network is maintained. Unique IDs are assigned to linestrings to maintain link throughout the subsequent conversion to NEM format.
+It is not envisaged that this tool will be (re)used, the code is just captured for historical archiving.
