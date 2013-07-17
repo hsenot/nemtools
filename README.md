@@ -21,7 +21,7 @@ Get it from : http://www.pgadmin.org/download/index.php
 - Python interpreter (tested on 2.7.5 for Windows 64-bit)
 
 Note: in Windows, access to the Python executable relies on PYTHONPATH referencing the Python library folder and the PATH variable referencing PYTHONPATH
-
+Note: in some systems, QGIS might interfere with the newly installed Python. Removing PYTHONPATH from the environment variables has worked in some cases.
 
 - the transitfeed Python library (https://code.google.com/p/googletransitdatafeed/wiki/TransitFeedDistribution)
 
@@ -32,7 +32,14 @@ git submodule add git://github.com/drt24/googletransitdatafeed.git gtfs
 - the psycog Python library
 
 Note: on MacOS, it could be as easy as: easy_install psycopg2 (based on http://initd.org/psycopg/install/). You may want to use virtualenv for cleaner library management.
-
+Note: on Windows, the installation of this library might unleash dependency hell. Were helpful to overcome this:
+Download and install setup tools (which will allow for the use of easy_install.exe)
+Put the OpenGeo Suite pg_config.exe in the PATH
+Follow: http://stackoverflow.com/questions/2817869/error-unable-to-find-vcvarsall-bat
+which boils down to installing MingW (download from: http://sourceforge.net/projects/mingw/?source=dlp)
+The final error points at a flag (mno-cygwin) which is deprecated from latest versions of MingW. Solution here:
+http://stackoverflow.com/questions/6034390/compiling-with-cython-and-mingw-produces-gcc-error-unrecognized-command-line-o
+Hell exited sucessfully!
 
 - GDAL libray binaries (tested with release-1600-x64-gdal-1-10-mapserver-6-2 downloaded from http://www.gisinternals.com/sdk/Download.aspx?file=release-1600-x64-gdal-1-10-mapserver-6-2.zip)
 
