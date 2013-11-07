@@ -4,7 +4,9 @@ import psycopg2
 # Database / global variables
 target_srid = str(4326)
 db_name = "bze"
-db_port = str(54321)
+db_port = str(5432)
+db_user = "bze"
+db_password = "bze"
 
 # Configuration for each mode
 train_dict = {"shp_line_in":"in/shp/train_line.shp","shp_stop_in":"in/shp/train_stop.shp","nem_filename_out":"out/train_network.nem"}
@@ -59,7 +61,7 @@ if shp_line_in:
 	os.system(cmd)
 
 	# Loading the result using psql
-	cmd = "psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_line_out+".sql"
+	cmd = "sudo -u postgres psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_line_out+".sql"
 	print "Executing command: "+cmd
 	os.system(cmd)
 
@@ -72,13 +74,13 @@ if shp_stop_in:
 	os.system(cmd)
 
 	# Loading the result using psql
-	cmd = "psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_point_out+".sql"
+	cmd = "sudo -u postgres psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_point_out+".sql"
 	print "Executing command: "+cmd
 	os.system(cmd)
 
 # Now playing with the loaded table
 try:
-	conn_str = "dbname='"+db_name+"' user='postgres' host='localhost' port='"+db_port+"'"
+	conn_str = "dbname='"+db_name+"' user='"+db_user+"' password='"+db_password+"' host='localhost' port='"+db_port+"'"
 	conn = psycopg2.connect(conn_str)
 	if conn:
 		print "Now connected to the database"
@@ -117,7 +119,7 @@ where not exists
 		os.system(cmd)
 
 		# Loading the result using psql
-		cmd = "psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_zone_out+".sql"
+		cmd = "sudo -u postgres psql -p "+db_port+" -d "+db_name+" -f tmp/"+table_zone_out+".sql"
 		print "Executing command: "+cmd
 		os.system(cmd)		 
 
