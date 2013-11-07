@@ -32,6 +32,7 @@ git submodule add git://github.com/drt24/googletransitdatafeed.git gtfs
 - the psycog Python library
 
 Note: on MacOS, it could be as easy as: easy_install psycopg2 (based on http://initd.org/psycopg/install/). You may want to use virtualenv for cleaner library management.
+Note: on Ubuntu, additional components are required: sudo apt-get install libpq-dev python-dev (based on http://stackoverflow.com/questions/5420789/how-to-install-psycopg2-with-pip-on-python)
 Note: on Windows, the installation of this library might unleash dependency hell. Were helpful to overcome this:
 Download and install setup tools (which will allow for the use of easy_install.exe)
 Put the OpenGeo Suite pg_config.exe in the PATH
