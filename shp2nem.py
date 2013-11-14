@@ -431,11 +431,6 @@ Language;English
 
 	fo.write("\n\n")
 
-	print "Step 4b"
-	# Persisting an edge table into the database (for "real" networks: train, tram, bus)
-	#if current_mode != "Walk" and current_mode != "OD":
-
-
 	# Laegen section: physical length of each edge
 	print "Step 5"
 	for row in rows:
