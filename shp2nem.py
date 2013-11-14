@@ -8,27 +8,43 @@ db_port = str(5432)
 db_user = "bze"
 db_password = "bze"
 
+
+# Structure to persist: edge table
+# ID
+# Geometry (straight line from start node to end node)
+# Start node ID
+# End node ID
+# List of routes
+# Physical distance
+# Average speed (blank for now)
+#+
+# Route / segment table
+# Route ID
+# Edge ID
+# (redundant from list of routes, but more relational)
+
+
 # Configuration for each mode
 train_dict = {"shp_line_in":"in/shp/train_line.shp","shp_stop_in":"in/shp/train_stop.shp","nem_filename_out":"out/train_network.nem"}
-train_dict.update({"table_line_out":"nw_train_line","table_point_out":"nw_train_stop"})
+train_dict.update({"table_line_out":"nw_train_line","table_point_out":"nw_train_stop","table_edge":"nw_train_edge","table_gtfs":"nw_train_gtfs"})
 train_dict.update({"perform_id_update":False,"mode_abbrev":"T","avg_speed_km_per_hour":40,"line_color":"blau"})
 
 tram_dict = {"shp_line_in":"in/shp/tram_line.shp","shp_stop_in":"in/shp/tram_stop.shp","nem_filename_out":"out/tram_network.nem"}
-tram_dict.update({"table_line_out":"nw_tram_line","table_point_out":"nw_tram_stop"})
+tram_dict.update({"table_line_out":"nw_tram_line","table_point_out":"nw_tram_stop","table_edge":"nw_tram_edge","table_gtfs":"nw_tram_gtfs"})
 tram_dict.update({"perform_id_update":False,"mode_abbrev":"M","avg_speed_km_per_hour":20,"line_color":"gruen"})
 
 newnw_dict = {"shp_line_in":"in/shp/network-self-snapped-reworked.shp","shp_stop_in":"in/shp/interchange.shp","nem_filename_out":"out/new_network.nem"}
-newnw_dict.update({"table_line_out":"nw_line","table_point_out":"nw_point"})
+newnw_dict.update({"table_line_out":"nw_line","table_point_out":"nw_point","table_edge":"nw_bus_edge","table_gtfs":"nw_bus_gtfs"})
 newnw_dict.update({"perform_id_update":True,"mode_abbrev":"B","avg_speed_km_per_hour":30,"line_color":"rot"})
 
 road_dict = {"mode_abbrev":"A"}
 
 walk_dict = {"shp_line_in":"","shp_stop_in":"","nem_filename_out":"out/walk_network.nem"}
-walk_dict.update({"table_line_out":"nw_walk_line","table_point_out":""})
+walk_dict.update({"table_line_out":"nw_walk_line","table_point_out":"","table_edge":"","table_gtfs":""})
 walk_dict.update({"perform_id_update":False,"mode_abbrev":"W","avg_speed_km_per_hour":5,"line_color":"orange"})
 
 od_dict = {"shp_line_in":"","shp_stop_in":"in/shp/zone_node.shp","nem_filename_out":"out/od_network.nem"}
-od_dict.update({"table_line_out":"nw_od_line","table_point_out":"nw_od_point"})
+od_dict.update({"table_line_out":"nw_od_line","table_point_out":"nw_od_point","table_edge":"","table_gtfs":""})
 od_dict.update({"perform_id_update":False,"mode_abbrev":"E","avg_speed_km_per_hour":5,"line_color":"rosa"})
 
 mode_dict = {"Train":train_dict,"Tram":tram_dict,"Bus":newnw_dict,"Road":road_dict,"Walk":walk_dict,"OD":od_dict}
@@ -45,6 +61,8 @@ shp_line_in  = mode_dict[current_mode]["shp_line_in"]
 shp_stop_in = mode_dict[current_mode]["shp_stop_in"]
 table_line_out = mode_dict[current_mode]["table_line_out"]
 table_point_out = mode_dict[current_mode]["table_point_out"]
+table_edge = mode_dict[current_mode]["table_edge"]
+table_gtfs = mode_dict[current_mode]["table_gtfs"]
 perform_id_update = mode_dict[current_mode]["perform_id_update"]
 mode_abbrev = mode_dict[current_mode]["mode_abbrev"]
 line_color = mode_dict[current_mode]["line_color"]
@@ -309,7 +327,14 @@ Language;English
 	print "Step 4"
 	if current_mode != "Walk" and current_mode != "OD":
 		sql = """
-		select l_name,'"""+point_prefix+"""'||pt_a as pt_a,'"""+point_prefix+"""'||pt_b as pt_b,
+		drop table if exists """+table_edge+""" cascade
+		"""
+		cur.execute(sql)
+		conn.commit()
+
+		sql = """
+		create table """+table_edge+""" as
+		select l_name as route,'"""+point_prefix+"""'||pt_a as pt_a,'"""+point_prefix+"""'||pt_b as pt_b,
 		round(st_length(
 		  st_transform(
 		    st_line_substring(
@@ -344,6 +369,42 @@ Language;English
 		and ST_Distance(pb.geom,nl.geom)<0.000001
 		and nl.name=u.l_name order by l_name
 		"""
+		cur.execute(sql)
+		conn.commit()
+
+		# Persisting the table for GTFS
+		sql = """
+		drop table if exists """+table_gtfs+""" cascade
+		"""
+		cur.execute(sql)
+		conn.commit()
+
+		sql = """
+		create table """+table_gtfs+""" as		
+		select row_number() over (order by pt_a,pt_b) as id,t.*,null::numeric as avg_speed,ST_SetSRID(ST_MakeLine(pta.geom,ptb.geom),4326)::Geometry(GEOMETRY,4326) as the_geom
+		from
+		(
+		select array_to_string(array_agg(route order by route asc),',') as route_list,pt_a,pt_b,max(l) as leg_length
+		from
+		(select
+		route,pt_a,pt_b,leg_length as l
+		from """+table_edge+"""
+		where pt_a<pt_b
+		union
+		select
+		route,pt_b,pt_a,leg_length
+		from """+table_edge+"""
+		where pt_a>pt_b)
+		x group by pt_a,pt_b
+		) t, """+table_point_out+""" pta, """+table_point_out+""" ptb
+		where t.pt_a='"""+point_prefix+"""'||pta.gid and t.pt_b='"""+point_prefix+"""'||ptb.gid
+		"""
+		cur.execute(sql)
+		conn.commit()
+
+		sql = """
+		select * from """+table_edge+"""
+		"""
 	else:
 		sql = """
 		select name,pt_a,pt_b,round(st_length(st_transform(geom,3111))::numeric,0) as leg_length
@@ -369,6 +430,11 @@ Language;English
 
 
 	fo.write("\n\n")
+
+	print "Step 4b"
+	# Persisting an edge table into the database (for "real" networks: train, tram, bus)
+	#if current_mode != "Walk" and current_mode != "OD":
+
 
 	# Laegen section: physical length of each edge
 	print "Step 5"
