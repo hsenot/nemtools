@@ -7,6 +7,7 @@ db_name = "bze"
 db_port = str(5432)
 db_user = "bze"
 db_password = "bze"
+csv_file = "out/test.csv"
 
 
 # Structure to persist: edge table
@@ -22,6 +23,10 @@ db_password = "bze"
 # Route ID
 # Edge ID
 # (redundant from list of routes, but more relational)
+
+# => CSV file of routes: route name, dir1 (last stop), dir2 (first stop), list of segment IDs (comma-separated)
+# => Export to shapefile as part of the script
+# => Fix end of loops removing the final edge
 
 
 # Configuration for each mode
@@ -441,6 +446,43 @@ Language;English
 
 	fo.write("\n\n")
 	fo.close()
+
+	# Export section
+	# Export routes to a CSV file
+	print "Step 6"
+	if current_mode == "Bus":
+		# Retrieving the routes data
+		sql = """
+select route_name,'dir1','dir2',string_agg(id::text,','::text)
+from
+(
+  select route_name,g.id as id,g.route_list
+  from
+  (
+    select l.name as route_name,ST_Linemerge(ST_Union(b.the_geom)) as the_geom 
+    from nw_bus_gtfs b, nw_line l
+    where b.route_list like '%'||l.name or b.route_list like '%'||l.name||',%'
+    group by l.name
+  ) t, nw_bus_gtfs g
+  where ST_GeometryType(t.the_geom)='ST_LineString' and
+  ST_Intersects(g.the_geom,t.the_geom) and (g.route_list like '%'||route_name or g.route_list like '%'||route_name||',%')
+  order by ST_Line_Locate_point(t.the_geom,ST_ClosestPoint(t.the_geom,ST_Centroid(g.the_geom)))
+) a
+group by route_name
+		"""
+		print sql
+		cur.execute(sql)
+		rows = cur.fetchall()		
+
+		f = open(csv_file, "w")
+		f.write("route;dir1;dir2;edge_list\n")
+
+		f = open(csv_file,"w")
+		for row in rows:
+			# Do something horrible with the data: print it to a file!
+			f.write(str(row[0])+";"+str(row[1])+";"+str(row[2])+";"+str(row[3])+"\n")
+
+		f.close()
 
 except Exception,e: 
     print "I can't do that"
