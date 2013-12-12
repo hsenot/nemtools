@@ -8,7 +8,7 @@ db_port = str(5432)
 db_user = "bze"
 db_password = "bze"
 csv_file = "out/test.csv"
-
+filler_stop_density = 500
 
 # Structure to persist: edge table
 # ID
@@ -377,36 +377,6 @@ Language;English
 		cur.execute(sql)
 		conn.commit()
 
-		# Persisting the table for GTFS
-		sql = """
-		drop table if exists """+table_gtfs+""" cascade
-		"""
-		cur.execute(sql)
-		conn.commit()
-
-		sql = """
-		create table """+table_gtfs+""" as		
-		select row_number() over (order by pt_a,pt_b) as id,t.*,null::numeric as avg_speed,ST_SetSRID(ST_MakeLine(pta.geom,ptb.geom),4326)::Geometry(GEOMETRY,4326) as the_geom
-		from
-		(
-		select array_to_string(array_agg(route order by route asc),',') as route_list,pt_a,pt_b,max(l) as leg_length
-		from
-		(select
-		route,pt_a,pt_b,leg_length as l
-		from """+table_edge+"""
-		where pt_a<pt_b
-		union
-		select
-		route,pt_b,pt_a,leg_length
-		from """+table_edge+"""
-		where pt_a>pt_b)
-		x group by pt_a,pt_b
-		) t, """+table_point_out+""" pta, """+table_point_out+""" ptb
-		where t.pt_a='"""+point_prefix+"""'||pta.gid and t.pt_b='"""+point_prefix+"""'||ptb.gid
-		"""
-		cur.execute(sql)
-		conn.commit()
-
 		sql = """
 		select * from """+table_edge+"""
 		"""
@@ -448,41 +418,120 @@ Language;English
 	fo.close()
 
 	# Export section
-	# Export routes to a CSV file
 	print "Step 6"
 	if current_mode == "Bus":
-		# Retrieving the routes data
+		# Starts by adding the extra stops with a density of XXX meters
+		sql = "drop table if exists nw_extra_point;"
+		print sql
+		cur.execute(sql)
+		conn.commit()
+
 		sql = """
-select route_name,'dir1','dir2',string_agg(id::text,','::text)
+create table nw_extra_point as
+select 
+(select nextval('nw_point_gid_seq')) as id,
+ST_Transform(pt_geom,4326)::Geometry(Point,4326) as the_geom
 from
-(
-  select route_name,g.id as id,g.route_list
-  from
-  (
-    select l.name as route_name,ST_Linemerge(ST_Union(b.the_geom)) as the_geom 
-    from nw_bus_gtfs b, nw_line l
-    where b.route_list like '%'||l.name or b.route_list like '%'||l.name||',%'
-    group by l.name
-  ) t, nw_bus_gtfs g
-  where ST_GeometryType(t.the_geom)='ST_LineString' and
-  ST_Intersects(g.the_geom,t.the_geom) and (g.route_list like '%'||route_name or g.route_list like '%'||route_name||',%')
-  order by ST_Line_Locate_point(t.the_geom,ST_ClosestPoint(t.the_geom,ST_Centroid(g.the_geom)))
-) a
-group by route_name
+(select 
+ST_Transform(ST_Line_Interpolate_Point(the_geom,i*"""+str(filler_stop_density)+"""/l),3111) as pt_geom
+from
+(select 
+geom as the_geom,
+st_length(st_transform(geom,3111)) as l, 
+generate_series(1,round(st_length(st_transform(geom,3111))/"""+str(filler_stop_density)+""")::int) as i
+from nw_line) t
+where i*"""+str(filler_stop_density)+"""/l < 1) s
+where not exists (select 1 from nw_point p where ST_Distance(ST_Transform(p.geom,3111),pt_geom)<"""+str(filler_stop_density)+""");	
 		"""
 		print sql
 		cur.execute(sql)
-		rows = cur.fetchall()		
+		conn.commit()
 
-		f = open(csv_file, "w")
-		f.write("route;dir1;dir2;edge_list\n")
+		# Inject the filler stops into the main stop table
+		sql = "insert into nw_point (id,typ,geom) select nextval('nw_point_gid_seq'),'FILLERS',the_geom from nw_extra_point;"
+		print sql
+		cur.execute(sql)
+		conn.commit()	
 
-		f = open(csv_file,"w")
-		for row in rows:
-			# Do something horrible with the data: print it to a file!
-			f.write(str(row[0])+";"+str(row[1])+";"+str(row[2])+";"+str(row[3])+"\n")
+		# Recalculate the edges based on the new point dataset
+		sql = """
+		drop table if exists """+table_edge+""" cascade
+		"""
+		cur.execute(sql)
+		conn.commit()
 
-		f.close()
+		sql = """
+		create table """+table_edge+""" as
+		select l_name as route,'"""+point_prefix+"""'||pt_a as pt_a,'"""+point_prefix+"""'||pt_b as pt_b,
+		round(st_length(
+		  st_transform(
+		    st_line_substring(
+		      nl.geom,
+		      ST_Line_Locate_point(nl.geom,ST_ClosestPoint(nl.geom,pa.geom)),
+		      ST_Line_Locate_point(nl.geom,ST_ClosestPoint(nl.geom,pb.geom))
+		    )
+		  ,3111)
+		)::numeric,0) as leg_length 
+		from
+		(
+		  select l_name,pt_arr[i] as pt_a,pt_arr[i+1] as pt_b 
+		  from
+		  (
+		    select l_name,pt_arr,generate_series(1,array_length(pt_arr,1)-1) as i 
+		    from
+		    (
+		      select l_name,array_agg(p_id) as pt_arr
+		      from
+		        (
+		          select l.name as l_name,p.gid as p_id 
+		          from """+table_line_out+""" l, """+table_point_out+""" p
+		          where ST_Distance(p.geom,l.geom)<0.000001
+		          order by l.name,ST_Line_Locate_point(l.geom,ST_ClosestPoint(l.geom,p.geom))
+		        ) t
+		      group by l_name order by l_name
+		    ) t
+		  ) s
+		) u, """+table_point_out+""" pa, """+table_point_out+""" pb, """+table_line_out+""" nl
+		where pa.gid=u.pt_a and pb.gid=u.pt_b
+		and ST_Distance(pa.geom,nl.geom)<0.000001
+		and ST_Distance(pb.geom,nl.geom)<0.000001
+		and nl.name=u.l_name order by l_name
+		"""
+		cur.execute(sql)
+		conn.commit()
+
+		# Persisting the table for GTFS
+		sql = """
+		drop table if exists """+table_gtfs+""" cascade
+		"""
+		print sql
+		cur.execute(sql)
+		conn.commit()
+
+		sql = """
+		create table """+table_gtfs+""" as		
+		select row_number() over (order by pt_a,pt_b) as id,t.*,null::numeric as avg_speed,ST_SetSRID(ST_MakeLine(pta.geom,ptb.geom),4326)::Geometry(GEOMETRY,4326) as the_geom
+		from
+		(
+		select array_to_string(array_agg(route order by route asc),',') as route_list,pt_a,pt_b,max(l) as leg_length
+		from
+		(select
+		route,pt_a,pt_b,leg_length as l
+		from """+table_edge+"""
+		where pt_a<pt_b
+		union
+		select
+		route,pt_b,pt_a,leg_length
+		from """+table_edge+"""
+		where pt_a>pt_b)
+		x group by pt_a,pt_b
+		) t, """+table_point_out+""" pta, """+table_point_out+""" ptb
+		where t.pt_a='"""+point_prefix+"""'||pta.gid and t.pt_b='"""+point_prefix+"""'||ptb.gid
+		"""
+		print sql
+		cur.execute(sql)
+		conn.commit()
+
 
 except Exception,e: 
     print "I can't do that"
