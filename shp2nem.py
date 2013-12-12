@@ -448,12 +448,19 @@ where not exists (select 1 from nw_point p where ST_Distance(ST_Transform(p.geom
 		conn.commit()
 
 		# Inject the filler stops into the main stop table
-		sql = "insert into nw_point (id,typ,geom) select nextval('nw_point_gid_seq'),'FILLERS',the_geom from nw_extra_point;"
+		sql = "insert into nw_point (typ,geom) select 'FILLERS',the_geom from nw_extra_point;"
+		print sql
+		cur.execute(sql)
+		conn.commit()	
+
+		# Align id with gid
+		sql = "update nw_point set id=gid;"
 		print sql
 		cur.execute(sql)
 		conn.commit()	
 
 		# Recalculate the edges based on the new point dataset
+		# Note: this query is a copy+paste of the query above, so this is duplicate code: bad!
 		sql = """
 		drop table if exists """+table_edge+""" cascade
 		"""
