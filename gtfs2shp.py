@@ -3,8 +3,9 @@ import psycopg2
 
 target_srid = "4326"
 db_name = "bze"
-db_port = str(54321)
+db_port = str(5432)
 ogr2ogr = "C:\\Herve\\tools\\gdal\\bin\\gdal\\apps\\ogr2ogr.exe"
+ogr2ogr = "ogr2ogr"
 
 table_out = ["train","tram"]
 
@@ -40,12 +41,12 @@ try:
 			os.system(cmd)
 
 			# Loading the shapefile into the database
-			cmd = "shp2pgsql -d -D -I -t 2D -S -s "+target_srid+" "+shp[mode]+" \""+mode+"_"+str(line)+"\" > "+mode+".sql"
+			cmd = "/usr/lib/postgresql/9.2/bin/shp2pgsql -d -D -I -t 2D -S -s "+target_srid+" "+shp[mode]+" \""+mode+"_"+str(line)+"\" > "+mode+".sql"
 			print "Executing command: "+cmd
 			os.system(cmd)
 
 			# Loading the result using psql
-			cmd = "psql -p "+db_port+" -d "+db_name+" -f "+mode+".sql"
+			cmd = "sudo -u postgres psql -p "+db_port+" -d "+db_name+" -f "+mode+".sql"
 			print "Executing command: "+cmd
 			os.system(cmd)
 
@@ -90,7 +91,7 @@ try:
 			# We could be deleting the pattern tables here, we don't need them anymore
 			# selecting the pattern with the most stops on each line
 			print "Step 3-"+str(line)
-			sql = "DROP TABLE IF EXISTS \""+mode_line+"\" CASCADE;"
+			#sql = "DROP TABLE IF EXISTS \""+mode_line+"\" CASCADE;"
 			print sql
 			cur.execute(sql)
 			conn.commit()

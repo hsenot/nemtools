@@ -1,22 +1,22 @@
 import os
 import psycopg2
 
-shp_in = "in/shp/network-saved.shp"
-shp_out = "out/network-self-snapped.shp"
-table_out = "nw"
+shp_in = "/home/hsenot/Data/BZE/new_network/Direct.shp"
+shp_out = "out/new-network-self-snapped.shp"
+table_out = "newnw"
 target_srid = str(4326)
 db_name = "bze"
-db_port = str(54321)
+db_port = str(5432)
 
 print "Preparing the shapefile "+shp_in+" ..."
 
 # Loading the shapefile into the database
-cmd = "shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_in+" "+table_out+" > "+table_out+".sql"
+cmd = "/usr/lib/postgresql/9.2/bin/shp2pgsql -W LATIN1 -d -D -I -t 2D -S -s "+target_srid+" "+shp_in+" "+table_out+" > "+table_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
 # Loading the result using psql
-cmd = "psql -p "+db_port+" -d "+db_name+" -f "+table_out+".sql"
+cmd = "sudo -u postgres psql -p "+db_port+" -d "+db_name+" -f "+table_out+".sql"
 print "Executing command: "+cmd
 os.system(cmd)
 
@@ -87,7 +87,7 @@ try:
 	#exceptions = [['6','15']]
 	for row in rows:
 		print "Step 4x"
-		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,0.00015) from "+table_out+"_mini a where a.gid = "+str(row[0])+") WHERE "+table_out+"_mini.gid <> "+ str(row[0])
+		sql = "UPDATE "+table_out+"_mini SET the_geom=(select ST_Snap("+table_out+"_mini.the_geom,a.the_geom,0.0004) from "+table_out+"_mini a where a.gid = "+str(row[0])+") WHERE "+table_out+"_mini.gid <> "+ str(row[0])
 		print sql
 		cur.execute(sql)
 		conn.commit()
@@ -110,7 +110,7 @@ try:
 
 	# Exporting the network as a shapefile
 	print "Step 6"	
-	cmd = "pgsql2shp -f "+shp_out+" -p "+db_port+" "+db_name+" "+table_out+"_mini"
+	cmd = "/usr/lib/postgresql/9.2/bin/pgsql2shp -f "+shp_out+" -p "+db_port+" -u postgres "+db_name+" "+table_out+"_mini"
 	print "Executing command: "+cmd
 	os.system(cmd)	
 
